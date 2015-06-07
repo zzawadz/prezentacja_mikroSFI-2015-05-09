@@ -1,0 +1,24 @@
+---
+title: "Rekomendacje dla {{{name}}}"
+output: {{format}}_document
+---
+
+```{r, echo=FALSE, message=FALSE}
+library(knitr)
+library(dplyr)
+
+load("rateData.RData")
+load("modelRecs.RData")
+```
+
+## Rekomendacje
+
+```{r, echo=FALSE}
+kable(modelRecs)
+```
+
+## Oceny użytkownika
+
+```{r, echo=FALSE}
+kable(rateData)
+```

@@ -3,6 +3,14 @@
 .Rproj.*
 RcppExports.*
 *.dll
+u.data
+u.item
+rateData.RData
+modelRecs.RData
+*.docx
+*.pdf
+*.html
+cache
 
 ## Core latex/pdflatex auxiliary files:
 *.aux
