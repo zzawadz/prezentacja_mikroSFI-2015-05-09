@@ -10,6 +10,13 @@ library(rmarkdown)
 
 assign("rateData",data_frame(Movie = numeric(0), MovieName = character(0), Rate = numeric(0)), envir = .GlobalEnv)
 
+
+map_ext = function(ext)
+{
+  if(ext == "WORD") return("extOut.docx")
+  paste0("extOut.",tolower(ext))
+}
+
 shinyServer(function(input, output) {
 
   
@@ -54,7 +61,10 @@ shinyServer(function(input, output) {
   
   output$recsDT  = DT::renderDataTable(modelRecs())
   
-  observeEvent(input$runPDF,
+
+  
+  output$runPDF = downloadHandler(filename = function() map_ext(input$format),
+               content = function(file)
                {
                  save(rateData, file = "rateData.RData")
                  modelRecs = modelRecs()
@@ -66,11 +76,14 @@ shinyServer(function(input, output) {
                  con = file("eksOut.Rmd", "w", encoding="UTF-8")
                  cat(tmpl, file = con)
                  close(con)
+                 outFile = render("eksOut.Rmd",
+                                  switch(
+                                    input$format,
+                                    PDF = pdf_document(), HTML = html_document(), WORD = word_document()
+                                  ),
+                                  encoding = "UTF-8", clean = TRUE, quiet = TRUE)
                  
-                 outFile = render("eksOut.Rmd", encoding = "UTF-8", clean = TRUE)
-                 
-                 
-                 shell.exec(outFile)
+                 file.rename(outFile, file)
                  
                })
   

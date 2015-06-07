@@ -32,12 +32,12 @@ shinyUI(
     tabPanel(title = "Model rekomendacji:",
              actionButton("CreateRecModel", label = "Buduj model!"),
              DT::dataTableOutput("recsDT"),
-             actionButton("renderPDF", "Eksportuj jako pdf"),
-             bsModal(id = "expPDF", "Eksportuj jako pdf","renderPDF", size = "large",
+             actionButton("renderPDF", "Eksportuj"),
+             bsModal(id = "expPDF", "Eksportuj wyniki","renderPDF", size = "large",
                      textInput("userName", label = "Imie i nazwisko"),
                      selectInput("format", label = "Wybierz format", choices = c("PDF","HTML", "WORD"), selected = "PDF"),
                      
-                     actionButton("runPDF","Generuj!")
+                     downloadButton("runPDF","Generuj!")
                      )
             )
     
