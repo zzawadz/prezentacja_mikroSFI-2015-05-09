@@ -1,0 +1,13 @@
+Package: CFMLPack
+Type: Package
+Title: Prosty interface do funkcji CF z biblioteki MLPack
+Version: 0.1
+Date: 2015-06-06
+Author: Zygmunt Zawadzki
+Maintainer: Zygmunt Zawadzki <zawadzkizygmunt@gmail.com>
+Description: Pakiet stworzony na potrzeby prezentacji na mikroSFI. Raczej nie nadaje sie do szerszego wykorzystania.
+License: MIT
+LazyData: TRUE
+Imports:
+    Rcpp (>= 0.11.6)
+LinkingTo: Rcpp, RcppMLPACK, RcppArmadillo, BH

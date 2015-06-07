@@ -1,3 +1,9 @@
+*.o
+.Rhistory
+.Rproj.*
+RcppExports.*
+*.dll
+
 ## Core latex/pdflatex auxiliary files:
 *.aux
 *.lof
