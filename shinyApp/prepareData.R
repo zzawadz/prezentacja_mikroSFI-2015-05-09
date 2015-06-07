@@ -7,6 +7,21 @@ library(dplyr)
 
 
 
+
+file_exists = function(file, url)
+{
+  if(!file.exists(file))
+  {
+    url = paste0(url,file)
+    message(sprintf("%s nie znaleziono - zostanie pobrane z %s", file, url))
+    download.file(url, file)
+  }
+}
+
+url = "http://files.grouplens.org/datasets/movielens/ml-100k/"
+file_exists("u.data", url)
+file_exists("u.item", url)
+
 dataRaw = read_tsv("u.data", col_names = FALSE)
 colnames(dataRaw) = c("User","Movie", "Rating", "Timestamp")
 
