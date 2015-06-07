@@ -1,0 +1,642 @@
+\documentclass{beamer}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{amsfonts}
+\usepackage{lmodern}
+\usepackage{graphicx} 
+\usepackage{color}
+\usepackage{attrib}
+\usepackage{ragged2e}
+\usepackage{url}
+
+\begin{document}
+\title{Big Data, Machine Learning, EDA, Reproducible Research i inne modne słowa w analizie danych – gdzie one się mieszczą w słowniku R?}
+\author{Zygmunt Zawadzki}
+
+\begin{frame}
+\maketitle
+\end{frame}
+
+\begin{frame}
+\tableofcontents
+\end{frame}
+
+\section{Narzekamy na R...}
+
+\begin{frame}[fragile]
+\frametitle{Interpreter pisany przez statystyków...}
+
+Głównym problemem R jest to, że w jego tworzeniu brali udział ludzie bardziej związani ze statystyką, niż programowaniem. Przez to R czasem dziwnie się zachowuje, a interpreter nie działa tak jakby się tego chciało...
+
+Poniżej dokument który jest obowiązkową lekturą, jeżeli ktoś chce dłużej zachować kolor włosów przy obcowaniu z R - \url{http://www.burns-stat.com/pages/Tutor/R_inferno.pdf}. Tytuł nie jest tak bardzo przesadzony...
+
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Potworki z interpretera - zarządzanie pamięcią.}
+
+Na najbliższych slajdach rozważane będzie proste zadanie powiększania wektora o dodatkowy element. Pokazane zostanie, jak interpreter R działa w takim przypadku, a działa nie najlepiej, bo R bardzo lubi kopiować obiekty...
+\small
+<<>>=
+library(pryr)
+library(magrittr)
+x = 1
+# address zwraca adres pamieci w ktorym znajduje sie 
+# zmienna, jezeli po wykonaniu operacji adres sie zmienia 
+# - oznacza to ze zmienna zostala skopiowana
+address(x) 
+x = append(x, 1)
+address(x)
+@
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Potworki z interpretera - zarządzanie pamięcią cd.}
+Dodatkowo R nie rezerwuje sobie dodatkowej pamięci na rozrastające się wektory... Dlatego też kopiuje CAŁY wektor przy dodaniu choćby jednego elementu...
+<<size='footnotesize'>>=
+adr = character(0)
+x   = numeric(0)
+for(i in 1:21)
+{
+  x = append(x, i)
+  adr = append(adr, address(x))
+}
+adr %>% matrix(ncol = 3, byrow = TRUE)
+@
+\end{frame}
+
+
+\begin{frame}[fragile]
+\frametitle{Potworki z interpretera - a jak to powinno być w 'porządnym języku'? (C++)}
+<<Rcpp, size='scriptsize',engine='Rcpp'>>=
+#include <Rcpp.h>
+#include <string>
+#include <vector>
+#include <sstream>
+using namespace Rcpp;
+
+// [[Rcpp::export]]
+std::vector<std::string> test_vector_memory() {
+  std::vector<double> vec;
+  std::vector<std::string> adrStr;
+  std::stringstream ss;
+  
+  for(size_t i = 0; i < 21; i++)
+  {
+    vec.push_back(i);
+    ss << &vec[i];
+    adrStr.push_back(ss.str());
+    ss.str(std::string());
+  }
+  
+  return adrStr;
+}
+@
+
+
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Potworki z interpretera - a jak to powinno być w 'porządnym języku'? (C++), cd.}
+<<size='footnotesize'>>=
+test_vector_memory() %>% matrix(ncol = 3, byrow = TRUE)
+@
+
+Widać, że C++ mądrzej zarządza pamięcią, dzieki czemu nie musi co chwila realokować pamięci.
+
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Zarządzanie pamięcią w R - konsekwencje}
+
+W pewnych prostych zastosowaniach jest 100 i więcej razy wolniejszy od innych jezyków (w tym przypadku C++).
+
+<<Rcpp2, engine='Rcpp', echo=FALSE>>=
+#include <Rcpp.h>
+#include <string>
+#include <vector>
+
+// [[Rcpp::export]]
+void cpp_vector(int n) {
+  std::vector<double> vec;
+  for(int i = 0; i < n; i++)
+  {
+    vec.push_back(i);
+  }
+}
+
+// [[Rcpp::export]]
+void cpp_vector_prealloc(int n) {
+  std::vector<double> vec;
+  vec.reserve(n);
+  
+  for(int i = 0; i < n; i++)
+  {
+    vec.push_back(i);
+  }
+}
+@
+
+<<echo=FALSE,cache=TRUE>>=
+r_vector = function(n)
+{
+  x = numeric(0)
+  for(i in 1:n)
+  {
+    x = c(x,i)  
+  }
+}
+r_vector_prealloc = function(n)
+{
+  x = numeric(n)
+  for(i in 1:n)
+  {
+    x[i] = i  
+  }
+}
+@
+
+<<cache=TRUE, dependson='Rcpp2', size='footnotesize', message=FALSE, warning=FALSE,cache=TRUE>>=
+library(microbenchmark)
+library(dplyr)
+out = microbenchmark(
+  r_vector(1000),
+  r_vector_prealloc(1000),
+  cpp_vector(1000),
+  cpp_vector_prealloc(1000)
+)
+
+dt = data_frame(Expr = out$expr, Time = out$time)
+dt = dt %>% group_by(Expr) %>% summarise(MedianTime = median(Time))
+dt = cbind(dt, Relative = dt$MedianTime/min(dt$MedianTime))
+dt
+@
+
+\end{frame}
+
+\begin{frame}
+
+\Large{A idź z taką wydajnością...}
+
+Gdzie tu miejsce na BigData jak R wysiada wydajnościowo przy zwykłym powiększaniu wektora. Rodzi się więc pytanie:
+
+\begin{center}
+\Huge Czy R nadaje się do BigData?
+\end{center}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Odpowiedź:}
+
+\begin{center}
+\Huge I tak i nie.
+\end{center}
+
+
+\end{frame}
+
+
+
+\begin{frame}
+\frametitle{Trochę historii R}
+
+\textbf{R} powstał jako rozwinięcie \textbf{S}, a sam \textbf{S} został zaprojektowany bardziej jako interfejs do kodu \textbf{Fortranowego}. R po swoim przodku dziedziczy takie podejście. Jednak nie jest interfejsem tylko dla Fortrana, ale też dla innych języków: \textbf{C}, \textbf{C++}, \textbf{Java}, \textbf{JavaScript}, i w zasadzie jakikolwiek innych języków (tylko czasem trzeba samodzielnie napisać taki interface).
+
+ \vspace{1cm}
+Więcej na temat historii R pod linkiem: \url{https://www.youtube.com/watch?v=_hcpuRB5nGs} - gorąco polecam!
+
+\end{frame}
+
+\begin{frame}[fragile]
+
+W praktyce "wolny" R służy głównie jako platforma uruchomieniowa dla bibliotek napisanych w dużo szybszych językach. Dlatego też w standardowym użyciu nie ma większych problemów z wydajnością (ale R w benchmarkach będzie wypadał słabo...).
+
+ \vspace{0.5cm}
+Ilekroć w kodzie funkcji dojrzy się któreś z poniższych wywołań:
+<<eval=FALSE>>=
+.Call
+.Internal
+.Primitive
+.C
+.Fortran
+@
+tylekroć oznacza to, że obliczenia odbywają się "na zewnątrz" R, prawdopodobnie w którymś z języków kompilowanych.
+
+\end{frame}
+
+\begin{frame}
+\frametitle{R i BigData - podsumowanie}
+\centering
+\Large{
+R nadaje się do BigData - ale raczej jako interface do biblioteki realnie ku temu przeznaczonej (np. Hadoop i inne). Robienie BigData w czystym R nie jest raczej najlepszym pomysłem...}
+
+\vspace{0.5cm}
+
+\small{
+Należy dodać, że wraz ze wzrostem zainteresowania R rośnie ilość i jakość pakietów do BigData i pewne rzeczy stają się możliwe do wykorzystania bezpośrednio z poziomu R i stają się naturalnie eRowe (np. pakiet \textbf{data.table} całkiem nieźle radzi sobie z operacjami na dosyć dużych zbiorach danych, np. ok 100GB, niestety muszą one mieścić się w RAM-ie... Ale RAM robi się tani jak barszcz:)).}
+
+\end{frame}
+
+\section{Przykład!}
+
+\begin{frame}
+Opowiadać że \textbf{R} jest fajny jako interfejs można, ale przydałby się jakiś przykład... W przypadku finansów większość zagadnień może być nudnawe dla postronnych (bo kogo interesuje GARCH, SV itp?). Zrobimy więc system rekomendacji filmów.
+
+Założenia:
+
+\vspace{0.5cm}
+\begin{itemize}
+\item Model rekomendacyjny budowany w C++ i połączony z R.
+\item Aplikacja ma działać w przeglądarce.
+\item Z poziomu aplikacji ma istnieć możliwość eksportu wyników w postaci dokumentu pdf, html, lub docx. (knitr, rmarkdown $+$ mustache).
+\end{itemize}
+
+Wykorzystane dane pochodzą ze strony \url{http://grouplens.org/datasets/movielens/}, i zostały zebrane w ramach projektu GroupLensl.
+
+\end{frame}
+
+\begin{frame}
+\Huge
+\centering
+PRZYKŁAD!
+\end{frame}
+
+\section{R jako interface}
+
+\begin{frame}[fragile]
+\frametitle{Integracja R z C++}
+
+Rcpp pozwala na stosunkowo prostą integrację R i C++. Np poprzez funkcję \textbf{sourceCpp}
+
+<<size='tiny'>>=
+library(Rcpp)
+sourceCpp(code = "
+#include <Rcpp.h>
+#include <cmath>
+using namespace Rcpp;
+
+
+// [[Rcpp::export]]
+std::vector<double> diff_log(const std::vector<double>& x)
+{
+  std::vector<double> result;
+  if(x.empty()) return result;
+  
+  result.reserve(x.size()-1);
+  double logLast = std::log(x.at(0));
+  double curLog;
+  
+  for(size_t i = 1; i < x.size(); i++)
+  {
+    curLog = std::log(x[i]);
+    result.push_back(curLog - logLast);
+    logLast = curLog;
+  }
+
+  return result;
+}
+          ")
+@
+
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Integracja R z C++ cd.}
+
+Wszystkie funckje które przed swoją deklaracją zawierają $// [[Rcpp::export]]$ zostaną wyeksportowane do R:
+
+<<size='small'>>=
+x = c(10,20,30)
+diff_log(x) # przykladowe wywolanie:
+x = rnorm(100) + 1000
+all(diff_log(x) == diff(log(x))) # czy wyniki sa zgodne?
+diff_log # jak wyglada ta funkcja?
+@
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Integracja R z C++ - external pointer i pakiety.}
+
+Główna siła Rcpp tkwi jednak w możliwości łatwego tworzenia pakietów R wykorzystujących C++. Dzięki czemu napisanie interfejsu dla dowolnej biblioteki C++, lub optymalizacja kodu R staje się trywialnie łatwe (a na CRAN-ie wyrastają jak grzyby po deszczu pakiety korzystające z tych możliwości).
+
+\vspace{0.7cm}
+
+W przypadku Rpp warto jeszcze zapoznać się z szablonem klasy \textbf{XPtr} który pozwala na trzymanie w R wskaźnika do dowolnej klasy C++. \textbf{Czego można chcieć więcej od życia?}
+\end{frame}
+
+\begin{frame}\frametitle{Machine Learning}
+
+Świat nie jest na tyle różowy, by jedna metoda statystyczna górowała nad innymi w każdej sytuacji. Dlatego też ważny jest dostęp do jak najszerszego spektrum metod, tak by znaleźć najlepszą metodę dla konkretnych danych (złośliwi powiedzą, że trzeba się dofitować do danych:)). R udostępnia bardzo szeroki wchlarz procedur uczenia maszynowego, a interfejsyd do popularnych bibliotek zostały już napisane. 
+\vspace{0.5cm}
+
+Krótkie podsumowanie pakietów do ML można znaleźć pod adresem: \url{http://cran.r-project.org/web/views/MachineLearning.html}
+
+\end{frame}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Shiny - aplikacje przeglądarkowe w R}
+
+\begin{frame}
+\frametitle{shiny}
+
+\textbf{Shiny} to pakiet R zapoczątkowany przez Winstona Changa, pozwalający na tworzenie prostych aplikacji przeglądarkowych zintegrowanych z R.
+
+\textbf{Shiny} może przyjść z pomocą statystykowi gdy:
+\begin{itemize}
+\item Przeprowadzane analizy są mocno powtarzalne, zmienia się np. jedynie źródło danych i główne zadanie statystyka to powtórne uruchomienie już napisanego skryptu na nowych danych.
+\item Wymagany jest pewien poziom interakcji z danymi.
+\item Analiza przeprowadzana jest dla kogoś innego.
+\item Ten ktoś nie ma ochoty/czasu uczyć się R.
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{shiny - cd.}
+Przygodę z shiny najlepiej rozpocząć od tutoriali z \url{http://shiny.rstudio.com/}.
+
+\vspace{0.7cm}
+Co ciekawe znajomość JavaScriptu moze być przydatna przy korzystaniu z shiny, gdyż (trochę) podobnie jak w przypadku C++, w shiny można robić wstawki z \textbf{JS}. Na szczęście dla normalnych użytkowników - powstają coraz to nowe pakiety R udostępniające bardziej złożone funkcjonalności JS, standardowo niedostępne w shiny, bez potrzeby pisania kodu JavaScript.
+
+\end{frame}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Markdown, knitr, \LaTeX, czyli Reproducible Research w R}
+
+\begin{frame}[fragile]
+\frametitle{markdown + knitr + rmarkdown}
+
+Markdown jest stosunkowo prostym językiem znaczników umożliwającym tworzenie dokumentów. Dodatkowo dzięki pakietom R \textbf{rmarkdown} i \textbf{knitr} W bardzo łatwy i przyjazny można w takim dokumencie zawrzeć kod, który następnie będzie wykonany, a wyniki odpowiednio wstawione (czy to obrazki, czy tabelki - knitr zadba o wszystko).
+
+<<eval=FALSE>>=
+```{r}
+plot(rnorm(10))
+```
+@
+\end{frame}
+
+\begin{frame}
+\frametitle{Reproducible research}
+Mając combo w postaci R + markdown, dużo prościej tworzyć analizy które będą łatwiejsze do odtworzenia w przyszłości. Kod, obrazki i tabelki od tej pory można zawrzeć w jedym dokumencie - i co więcej - stworzony kod będzie odzwierciedlał to co w danej chwili autor miał na myśli.
+
+\vspace{0.5cm}
+Wyobraźmy sobie piękny świat w którym autor publikacji udostępnia jej źródła i wykorzystane dane, dzięki czemu każdy zainteresowany możne dokładnie prześledzić "a skąd mu się wzięły takie wyniki w tabelce?", bo kod generujący tabelkę jest zaraz w miejscu w którym ta tabelka się znajduje, a nie w pliku x.csv, który został wygenerowany na podstawie danych z y.csv przy pomocy skryptu scr.R...
+
+\vspace{0.5cm}
+I jeszcze pytanie filozoficzne - jakże często ten "zainteresowany" to twórca kodu kwartał później?:)
+
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Fragment dokumentu generującego raport o wybranych filmach.}
+\scriptsize
+\begin{verbatim}
+---
+title: "Rekomendacje dla ZZ"
+output: html_document
+---
+
+```{r, echo=FALSE, message=FALSE}
+library(knitr)
+library(dplyr)
+
+load("rateData.RData")
+load("modelRecs.RData")
+```
+
+## Rekomendacje
+
+```{r, echo=FALSE}
+kable(modelRecs)
+```
+\end{verbatim}
+
+By złożyć taki dokument wystarczy skorzystać z:
+<<eval=FALSE>>=
+library(rmarkdown)
+render("nazwaPliku.Rmd")
+@
+\end{frame}
+
+%%%% R + Latex
+\begin{frame}
+\frametitle{R + \LaTeX}
+
+\LaTeX to dosyć ciężka artyleria, jeżeli chodzi o składanie dokumentów. I podobnie jak markdown zintegrowana z R. W tym przypadku można by mnożyć przykłady - jednak wystarczające powinno być stwierdzenie, że niniejsza prezentacja została stworzona dzięki zintegrowaniu kodu R i \LaTeX-a - oczywiście przy pomocy \textbf{knitr}a.
+
+\end{frame}
+
+\begin{frame}[fragile]\frametitle{whisker (mustache)}
+
+\textbf{whisker} jest pakietem R, który implementuje \textbf{mustache} (\url{https://mustache.github.io/}), czyli swego rodzaju język szablonów.
+
+Idea jest bardzo prosta - w tworzonym dokumencie (tekstowym, nie ma znaczenia czy to tex, skrypt R, bash czy cokolwiek innego) w miejscach które będą się zmieniać wstawiamy tagi: 
+<<eval=FALSE>>=
+"Ala ma {{{zwierze}}}" # {{{zwierze}}} to tag 
+@
+Następnie tworzy się listę przypisującą tagom określone wartości:
+<<eval=FALSE>>=
+zwierze = "kota"
+@
+By po wyrenderowaniu otrzymać:
+<<eval=FALSE>>=
+"Ala ma kota"
+@
+
+\end{frame}
+
+\begin{frame}[fragile]\frametitle{whisker (mustache) - prosty przykład}
+<<>>=
+library(whisker)
+
+name = "Nazywam sie {{{name}}} {{{surname}}}
+i jestem {{{job}}}"
+
+tags = list(name = "Zygmunt",
+            surname = "Zawadzki",
+            job = "statystykiem")
+
+rnd = whisker.render(name, tags) 
+cat(rnd)
+@
+
+\end{frame}
+
+\begin{frame}\frametitle{whisker (mustache) - prosty przykład}
+Działanie \textbf{whisker}'a może wydawać się trochę trywialne - jednak w swojej prostocie jest bardzo użyteczne.
+
+\vspace{0.5cm}
+Jednym z pomysłów użycia może być generowanie raportu z poziomu shiny, w których użytkownik poprzez kontrolki w przeglądarce ustawia różne opcje. Następnie na podstawie wartości z kontrolek i szablonu dokumentu generowany jest źródło raportu, które następnie przy pomocy \textbf{knitr}'a przekształcane jest w ostateczny dokument. 
+
+\vspace{0.5cm}
+O jakże oczywistym ułatwieniu w generowaniu różnorakich plików konfiguracyjnych nie warto nawet wspominać:)
+
+
+\end{frame}
+
+%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}[fragile]
+\frametitle{magrittr}
+\scriptsize
+\textbf{magrittr} wprowadza do R operator $\%>\%$. Wzorowany na operatorze $|>$ z F\#.
+
+Operator $\%>\%$ przekazuje wynik wyrażenia znajdującego się po lewej stronie, do funkcji znajdującej się po prawej stronie:
+
+<<size='scriptsize'>>=
+x = 1:3
+x %>% log %>% diff
+# rownoznaczne:
+x1 = log(x)
+diff(x1)
+# lub:
+diff(log(x))
+
+@
+
+Wygląda niewinnie, ale w połączeniu z pakietem \textbf{dplyr} pozwala na pisanie bardzo złożonego, a jednocześnie jasnego kodu.
+
+\end{frame}
+
+%%%%%%%%%%%% dplyr
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{dplyr - wielka siła w R.}
+
+\begin{frame}[fragile]
+\frametitle{dplyr + magrittr}
+<<message=FALSE,warning=FALSE,size='footnotesize'>>=
+library(magrittr)
+library(dplyr)
+@
+
+Przykładowe dane:
+<<size='footnotesize',cache=TRUE>>=
+library(stringi)
+library(readr)
+dataRaw = read_tsv("shinyApp/u.data", col_names = FALSE)
+colnames(dataRaw) = c("User","Movie", "Rating", "Timestamp")
+
+# te dane sa bardziej zlosliwe 
+# i trzeba wiecej wysilku by je wczytac...
+movieInfo = read_lines("shinyApp/u.item")
+movieInfo = stri_split_fixed(movieInfo, 
+                             pattern = "|", simplify = TRUE)
+movieInfo = movieInfo[,c(1,2)]
+movieInfo = data_frame(
+  Movie = as.numeric(movieInfo[,1]), MovieName = movieInfo[,2])
+movieData = merge(dataRaw, movieInfo) %>% as_data_frame
+@
+
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Rzut oka na dane:}
+<<>>=
+movieData
+@
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Operacje na danych z dplyr}
+
+\textbf{Cel:} Policzyć średnią ocenę dla każdego z filmów:
+
+<<size='footnotesize'>>=
+movieData %>% group_by(MovieName) %>%
+  summarise(MeanRt = mean(Rating)) %>%
+  arrange(desc(MeanRt))
+@
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Operacje na danych z dplyr}
+
+\textbf{Cel:} Policzyć średnią ocenę dla każdego z filmów, przy czym filmy które zostały ocenione przez mniej niż 100 osób mają być nie uwzględnione:
+
+<<size='footnotesize'>>=
+movieData %>% group_by(MovieName) %>%
+  summarise(MeanRt = mean(Rating), nRt = n()) %>%
+  arrange(desc(MeanRt)) %>% filter(nRt > 100)
+@
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Operacje na danych z dplyr}
+
+\textbf{Cel:} Policzyć średnią ocenę dla każdego z filmów, przy czym filmy które zostały ocenione przez mniej niż 100 osób mają być nie uwzględnione, a tabelka ma być w formacie \LaTeX:
+
+<<size='footnotesize'>>=
+library(knitr)
+movieData %>% group_by(MovieName) %>%
+  summarise(MeanRt = mean(Rating), nRt = n()) %>%
+  arrange(desc(MeanRt)) %>% filter(nRt > 100) %>% 
+  head(3) %>% select(-nRt) %>% 
+  kable(digits = 3, align = "c")
+@
+\end{frame}
+
+
+\begin{frame}[fragile]
+\frametitle{Operacje na danych z dplyr}
+
+\textbf{Cel:} Dla 10 najlepszych filmów narysować wykres kołowy przyznawanych im ocen:
+
+<<size='footnotesize'>>=
+topTen = movieData %>% group_by(MovieName) %>%
+  summarise(MeanRt = mean(Rating), nRt = n()) %>%
+  arrange(desc(MeanRt)) %>% filter(nRt > 100) %>% 
+  head(10) %>% select(MovieName) %>% unlist()
+
+par(mfrow = c(5,2), mar = c(2,2,2,2))
+topRates = movieData %>% filter(MovieName %in% topTen) %>% 
+  group_by(MovieName) %>% 
+  do(Rts = (function(x) {
+    t = (x$Rating %>% table)/nrow(x)
+    pie(t, main = x$MovieName[[1]])
+    }
+    )(.))
+@
+\end{frame}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{The Hadleyverse}
+\begin{frame}
+\frametitle{The Hadleyverse}
+\small
+W przypadku wielu języków są pewne biblioteki które należy kojarzyć, gdyż pewne zadania są bardzo typowe i powtarzalne - np. trzeba sparsować xml-a, itp.
+
+W przypadku R oprócz znajomości pakietów do takich zastosowań - wypada znać pakiety których autorem jest Hadley Wickham - znacznie ułatwiają i uprzyjemniają pracę z R.
+
+Poniżej subiektywna lista:
+\begin{itemize}
+\item dplyr - operacje na data-frame-ach - ale o tym było już mówione.
+\item ggplot2 - implementacja "gramatyki" grafiki. Świetnie współpracuje z dplyr'em.
+\item lubirdate - pakiet do zadań związanych z typem czasowym w R, BARDZO uprzyjemnia pracę z datami.
+\item testthat - wsparcie dla pisania testów (a jak wiadmo testować trzeba).
+\item reshape - obracanie danych na różne strony (czyli najczęściej do postaci która najlepiej będzie pasować dla dplyr'a:))
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{The Hadleyverse - miscellaneous}
+
+
+\begin{itemize}
+\item \url{https://youtu.be/JxwxefRAu70} - wywiad z Hadley'em. Szczególnie polecam jego końcową radę - przynosi ukojenie w trudnych chwilach z R... A na początku większość chwil jest trudna...:)
+\item \url{http://adv-r.had.co.nz/} - wersja on-line książki "Advanced R". Skarbnica wiedzy na temat wysokopoziomowych zagadnień (np. organizacja obiektowości w R), po rzeczy bardziej niskopoziomowe (jak pisać wydajnie itp).
+\item \url{http://adolfoalvarez.cl/the-hitchhikers-guide-to-the-hadleyverse/} - przewodnik po Hadleyverse.
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}
+\centering
+\Huge
+Dziękuję za uwagę!
+\end{frame}
+
+\end{document}
