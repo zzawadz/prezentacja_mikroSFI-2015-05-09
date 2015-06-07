@@ -11,6 +11,8 @@ modelRecs.RData
 *.pdf
 *.html
 cache
+eksOut.Rmd
+prezentacja.tex
 
 ## Core latex/pdflatex auxiliary files:
 *.aux
