@@ -201,7 +201,7 @@ Gdzie tu miejsce na BigData jak R wysiada wydajnościowo przy zwykłym powiększ
 \begin{frame}
 \frametitle{Trochę historii R}
 
-\textbf{R} powstał jako rozwinięcie \textbf{S}, a sam \textbf{S} został zaprojektowany bardziej jako interfejs do kodu \textbf{Fortranowego}. R po swoim przodku dziedziczy takie podejście. Jednak nie jest interfejsem tylko dla Fortrana, ale też dla innych języków: \textbf{C}, \textbf{C++}, \textbf{Java}, \textbf{JavaScript}, i w zasadzie jakikolwiek innych języków (tylko czasem trzeba samodzielnie napisać taki interface).
+\textbf{R} powstał jako rozwinięcie \textbf{S}, a sam \textbf{S} został zaprojektowany bardziej jako interfejs do kodu \textbf{Fortranowego}. R po swoim przodku dziedziczy takie podejście. Jednak nie jest interfejsem tylko dla Fortrana, ale też dla innych języków: \textbf{C}, \textbf{C++}, \textbf{Java}, \textbf{JavaScript}, i w zasadzie jakikolwiek innych języków (tylko czasem trzeba samodzielnie napisać taki interfejs).
 
  \vspace{1cm}
 Więcej na temat historii R pod linkiem: \url{https://www.youtube.com/watch?v=_hcpuRB5nGs} - gorąco polecam!
@@ -304,7 +304,7 @@ std::vector<double> diff_log(const std::vector<double>& x)
 \begin{frame}[fragile]
 \frametitle{Integracja R z C++ cd.}
 
-Wszystkie funckje które przed swoją deklaracją zawierają $// [[Rcpp::export]]$ zostaną wyeksportowane do R:
+Wszystkie funkcje które przed swoją deklaracją zawierają $// [[Rcpp::export]]$ zostaną wyeksportowane do R:
 
 <<size='small'>>=
 x = c(10,20,30)
@@ -327,7 +327,7 @@ W przypadku Rpp warto jeszcze zapoznać się z szablonem klasy \textbf{XPtr} kt�
 
 \begin{frame}\frametitle{Machine Learning}
 
-Świat nie jest na tyle różowy, by jedna metoda statystyczna górowała nad innymi w każdej sytuacji. Dlatego też ważny jest dostęp do jak najszerszego spektrum metod, tak by znaleźć najlepszą metodę dla konkretnych danych (złośliwi powiedzą, że trzeba się dofitować do danych:)). R udostępnia bardzo szeroki wchlarz procedur uczenia maszynowego, a interfejsyd do popularnych bibliotek zostały już napisane. 
+Świat nie jest na tyle różowy, by jedna metoda statystyczna górowała nad innymi w każdej sytuacji. Dlatego też ważny jest dostęp do jak najszerszego spektrum metod, tak by znaleźć najlepszą metodę dla konkretnych danych (złośliwi powiedzą, że trzeba się dofitować do danych:)). R udostępnia bardzo szeroki wchlarz procedur uczenia maszynowego, a interfejsy do popularnych bibliotek zostały już napisane. 
 \vspace{0.5cm}
 
 Krótkie podsumowanie pakietów do ML można znaleźć pod adresem: \url{http://cran.r-project.org/web/views/MachineLearning.html}
@@ -368,7 +368,7 @@ Co ciekawe znajomość JavaScriptu moze być przydatna przy korzystaniu z shiny,
 \begin{frame}[fragile]
 \frametitle{markdown + knitr + rmarkdown}
 
-Markdown jest stosunkowo prostym językiem znaczników umożliwającym tworzenie dokumentów. Dodatkowo dzięki pakietom R \textbf{rmarkdown} i \textbf{knitr} W bardzo łatwy i przyjazny można w takim dokumencie zawrzeć kod, który następnie będzie wykonany, a wyniki odpowiednio wstawione (czy to obrazki, czy tabelki - knitr zadba o wszystko).
+Markdown jest stosunkowo prostym językiem znaczników umożliwającym tworzenie dokumentów. Dodatkowo dzięki pakietom R \textbf{rmarkdown} i \textbf{knitr} w bardzo łatwy i przyjazny można w takim dokumencie zawrzeć kod, który następnie będzie wykonany, a wyniki odpowiednio wstawione (czy to obrazki, czy tabelki - knitr zadba o wszystko).
 
 <<eval=FALSE>>=
 ```{r}
@@ -385,7 +385,7 @@ Mając combo w postaci R + markdown, dużo prościej tworzyć analizy które bę
 Wyobraźmy sobie piękny świat w którym autor publikacji udostępnia jej źródła i wykorzystane dane, dzięki czemu każdy zainteresowany możne dokładnie prześledzić "a skąd mu się wzięły takie wyniki w tabelce?", bo kod generujący tabelkę jest zaraz w miejscu w którym ta tabelka się znajduje, a nie w pliku x.csv, który został wygenerowany na podstawie danych z y.csv przy pomocy skryptu scr.R...
 
 \vspace{0.5cm}
-I jeszcze pytanie filozoficzne - jakże często ten "zainteresowany" to twórca kodu kwartał później?:)
+\textbf{I jeszcze pytanie filozoficzne - jakże często ten "zainteresowany" to twórca kodu kwartał później?:)}
 
 \end{frame}
 
@@ -582,15 +582,15 @@ movieData %>% group_by(MovieName) %>%
 \begin{frame}[fragile]
 \frametitle{Operacje na danych z dplyr}
 
-\textbf{Cel:} Dla 10 najlepszych filmów narysować wykres kołowy przyznawanych im ocen:
+\textbf{Cel:} Dla 2 najlepszych filmów narysować wykres kołowy przyznawanych im ocen:
 
 <<size='footnotesize'>>=
 topTen = movieData %>% group_by(MovieName) %>%
   summarise(MeanRt = mean(Rating), nRt = n()) %>%
   arrange(desc(MeanRt)) %>% filter(nRt > 100) %>% 
-  head(10) %>% select(MovieName) %>% unlist()
+  head(2) %>% select(MovieName) %>% unlist()
 
-par(mfrow = c(5,2), mar = c(2,2,2,2))
+par(mfrow = c(1,2), mar = c(2,2,2,2))
 topRates = movieData %>% filter(MovieName %in% topTen) %>% 
   group_by(MovieName) %>% 
   do(Rts = (function(x) {
